@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Course — Levine Wiki</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="masthead">
+    <a class="wordmark" href="index.html">Levine Wiki</a>
+    <p class="tagline">What students wish they'd known before registering</p>
+  </header>
+
+  <div id="notices" class="notices" role="status" aria-live="polite"></div>
+
+  <main>
+    <nav class="breadcrumb"><a href="index.html">All courses</a></nav>
+
+    <section class="course-head">
+      <h1 class="mark"><span id="code-display">…</span></h1>
+      <p class="course-stats" id="stats"></p>
+      <p class="sorter" id="sorter" hidden>
+        <a href="#" data-sort="new" class="on">Newest</a>
+        <a href="#" data-sort="helpful">Most helpful</a>
+      </p>
+    </section>
+
+    <ol class="tips" id="tips"></ol>
+    <div id="tips-empty"></div>
+
+    <section class="compose" id="post">
+      <h2 id="compose-heading">Add a tip</h2>
+      <form id="tip-form">
+        <input type="hidden" name="code" value="">
+
+        <p class="field">
+          <label for="body">What should someone know before taking it?</label>
+          <textarea id="body" name="body" rows="6" required
+                    placeholder="How the grading works, what to do in week one, what caught you off guard."></textarea>
+        </p>
+
+        <div class="field-row">
+          <p class="field">
+            <label for="instructor">Instructor <span class="optional">optional</span></label>
+            <input id="instructor" name="instructor" placeholder="Ms. Alvarez">
+          </p>
+          <p class="field">
+            <label for="difficulty">Difficulty <span class="optional">optional</span></label>
+            <select id="difficulty" name="difficulty">
+              <option value="">No rating</option>
+              <option value="1">1 — light</option>
+              <option value="2">2 — steady</option>
+              <option value="3">3 — real work</option>
+              <option value="4">4 — heavy</option>
+              <option value="5">5 — hardest class I've taken</option>
+            </select>
+          </p>
+          <p class="field">
+            <label for="author">Your name <span class="optional">optional</span></label>
+            <input id="author" name="author" placeholder="Posted anonymously if blank">
+          </p>
+        </div>
+
+        <p class="trap" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off"></label></p>
+        <button type="submit">Post tip</button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>Anyone can post. Nobody signs in. Keep it about the course, not the person.</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const code = normalizeCode(params.get("code"));
+    let sort = "new";
+
+    const list = document.getElementById("tips");
+    const emptyZone = document.getElementById("tips-empty");
+
+    if (!code) {
+      document.getElementById("code-display").textContent = "Not a course";
+      emptyZone.innerHTML =
+        '<div class="empty"><h2>That page isn\'t here.</h2>' +
+        '<p>Course pages use codes like ENG-111. <a href="index.html">Search from the front page</a>.</p></div>';
+      document.getElementById("post").hidden = true;
+    } else {
+      document.title = `${code} — Levine Wiki`;
+      document.getElementById("code-display").textContent = code;
+      document.getElementById("compose-heading").textContent = `Add a tip for ${code}`;
+      document.querySelector('#tip-form [name="code"]').value = code;
+      // Keep the address bar canonical: ?code=eng111 becomes ?code=ENG-111.
+      if (params.get("code") !== code) {
+        history.replaceState(null, "", `course.html?code=${code}`);
+      }
+      load();
+    }
+
+    async function load() {
+      try {
+        const tips = await fetchTips(code, sort);
+        renderTips(tips);
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    }
+
+    function renderTips(tips) {
+      const ratings = tips.map((t) => t.difficulty).filter(Boolean);
+      const stats = [`${tips.length} tip${tips.length === 1 ? "" : "s"}`];
+      if (ratings.length) {
+        const avg = (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1);
+        stats.push(
+          `average difficulty ${avg}/5 from ${ratings.length} rating${ratings.length === 1 ? "" : "s"}`
+        );
+      }
+      document.getElementById("stats").textContent = stats.join(" · ");
+      document.getElementById("sorter").hidden = tips.length < 2;
+
+      list.innerHTML = "";
+      emptyZone.innerHTML = "";
+
+      if (!tips.length) {
+        const box = el("div", "empty");
+        box.append(
+          el("h2", null, `Nothing here yet for ${code}.`),
+          el("p", null, "If you've taken it, write down what took you by surprise.")
+        );
+        emptyZone.append(box);
+        return;
+      }
+
+      for (const tip of tips) {
+        const item = el("li", "tip");
+        item.append(el("div", "tip-body", tip.body));
+
+        const byline = [tip.author || "Anonymous"];
+        if (tip.instructor) byline.push(`took it with ${tip.instructor}`);
+        if (tip.difficulty) byline.push(`rated ${tip.difficulty}/5`);
+        byline.push(since(tip.created_at));
+        item.append(el("p", "byline", byline.join(" · ")));
+
+        const wrap = el("div", "helpful");
+        const button = el("button");
+        const already = votedTips.has(tip.id);
+        button.disabled = already;
+        button.textContent =
+          (already ? "Marked helpful" : "Helpful") +
+          (tip.helpful_count ? ` (${tip.helpful_count})` : "");
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          try {
+            await markHelpful(tip.id);
+            votedTips.add(tip.id);
+            load();
+          } catch (error) {
+            notify(error.message, "error");
+            button.disabled = false;
+          }
+        });
+        wrap.append(button);
+        item.append(wrap);
+        list.append(item);
+      }
+    }
+
+    document.getElementById("sorter").addEventListener("click", (event) => {
+      const link = event.target.closest("a");
+      if (!link) return;
+      event.preventDefault();
+      sort = link.dataset.sort;
+      document.querySelectorAll("#sorter a").forEach((a) => a.classList.remove("on"));
+      link.classList.add("on");
+      load();
+    });
+
+    document.getElementById("tip-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = event.target.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const posted = await submitTip(event.target, code);
+        if (posted) {
+          event.target.reset();
+          notify(`Posted to ${code}. Thanks for helping the next student.`);
+          load();
+        }
+      } catch (error) {
+        notify(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

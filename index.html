@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Levine Wiki</title>
+  <meta name="description" content="Course guidance written by the students who already took the class.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="masthead">
+    <a class="wordmark" href="index.html">Levine Wiki</a>
+    <p class="tagline">What students wish they'd known before registering</p>
+  </header>
+
+  <div id="notices" class="notices" role="status" aria-live="polite"></div>
+
+  <main>
+    <section class="hero">
+      <h1>Look up a course before you register.</h1>
+      <form class="lookup" id="lookup" role="search">
+        <label for="q">Course code</label>
+        <input id="q" name="q" placeholder="ENG-111" autocomplete="off"
+               autocapitalize="characters" spellcheck="false">
+        <button type="submit">Search</button>
+      </form>
+      <p class="hint">Try ENG-111, CSC-251, MAT-271. Spacing and dashes don't matter.</p>
+    </section>
+
+    <section class="courses">
+      <h2 id="courses-heading">Courses with guidance</h2>
+      <ul class="course-grid" id="course-grid"></ul>
+      <div id="courses-empty"></div>
+    </section>
+
+    <section class="compose" id="post">
+      <h2>Add a tip</h2>
+      <form id="tip-form">
+        <div class="field-row">
+          <p class="field">
+            <label for="code">Course code</label>
+            <input id="code" name="code" required placeholder="ENG-111"
+                   autocapitalize="characters" spellcheck="false">
+          </p>
+          <p class="field">
+            <label for="instructor">Instructor <span class="optional">optional</span></label>
+            <input id="instructor" name="instructor" placeholder="Ms. Alvarez">
+          </p>
+        </div>
+
+        <p class="field">
+          <label for="body">What should someone know before taking it?</label>
+          <textarea id="body" name="body" rows="6" required
+                    placeholder="How the grading works, what to do in week one, what caught you off guard."></textarea>
+        </p>
+
+        <div class="field-row">
+          <p class="field">
+            <label for="difficulty">Difficulty <span class="optional">optional</span></label>
+            <select id="difficulty" name="difficulty">
+              <option value="">No rating</option>
+              <option value="1">1 — light</option>
+              <option value="2">2 — steady</option>
+              <option value="3">3 — real work</option>
+              <option value="4">4 — heavy</option>
+              <option value="5">5 — hardest class I've taken</option>
+            </select>
+          </p>
+          <p class="field">
+            <label for="author">Your name <span class="optional">optional</span></label>
+            <input id="author" name="author" placeholder="Posted anonymously if blank">
+          </p>
+        </div>
+
+        <p class="trap" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off"></label></p>
+        <button type="submit">Post tip</button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>Anyone can post. Nobody signs in. Keep it about the course, not the person.</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const grid = document.getElementById("course-grid");
+    const emptyZone = document.getElementById("courses-empty");
+    const heading = document.getElementById("courses-heading");
+    let allCourses = [];
+
+    function render(query = "") {
+      const needle = query.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+      const shown = needle
+        ? allCourses.filter((c) => c.code.replace("-", "").includes(needle))
+        : allCourses;
+
+      heading.textContent = query ? `Courses matching "${query}"` : "Courses with guidance";
+      grid.innerHTML = "";
+      emptyZone.innerHTML = "";
+
+      if (!shown.length) {
+        const box = el("div", "empty");
+        box.append(
+          el("h2", null, query ? `No one has written about ${query} yet.` : "The board is empty."),
+          el("p", null, query
+            ? "You could be the first — add what you learned below."
+            : "Post the first tip and give the next student a head start.")
+        );
+        emptyZone.append(box);
+        return;
+      }
+
+      shown.sort((a, b) => new Date(b.latest) - new Date(a.latest));
+      for (const course of shown) {
+        const item = el("li");
+        const link = el("a");
+        link.href = `course.html?code=${course.code}`;
+
+        const mark = el("span", "mark");
+        mark.append(el("span", null, course.code));
+
+        const parts = [`${course.count} tip${course.count === 1 ? "" : "s"}`];
+        if (course.difficulty) parts.push(`difficulty ${course.difficulty.toFixed(1)}/5`);
+
+        link.append(mark, el("span", "meta", parts.join(" · ")));
+        item.append(link);
+        grid.append(item);
+      }
+    }
+
+    document.getElementById("lookup").addEventListener("submit", (event) => {
+      event.preventDefault();
+      render(document.getElementById("q").value.trim());
+    });
+
+    document.getElementById("tip-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = event.target.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const code = await submitTip(event.target);
+        if (code) window.location.href = `course.html?code=${code}`;
+      } catch (error) {
+        notify(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    (async function load() {
+      try {
+        allCourses = await fetchCourses();
+        render();
+      } catch (error) {
+        notify(error.message, "error");
+        render();
+      }
+    })();
+  </script>
+</body>
+</html>
