@@ -10,8 +10,8 @@
 // Never paste the "service_role" key here — that one bypasses every policy.
 // ---------------------------------------------------------------------------
 
-const SUPABASE_URL = "PASTE_YOUR_PROJECT_URL_HERE";
-const SUPABASE_ANON_KEY = "PASTE_YOUR_ANON_PUBLIC_KEY_HERE";
+const SUPABASE_URL = "https://axcrhssxyytoavcwgeei.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4Y3Joc3N4eXl0b2F2Y3dnZWVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTM2MzIsImV4cCI6MjEwMzkyOTYzMn0.ui-ElVuU3i4kEP6Oj-HpZGu9I6yEySgKO3XmgP9Hd_c";
 
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
 
